@@ -456,6 +456,17 @@
             color: #00ffff;
         }
 
+        .subdomains-hint {
+            font-size: 0.35rem;
+            color: #888;
+            margin-top: 2px;
+            cursor: help;
+        }
+
+        .subdomains-hint:hover {
+            color: #00ff00;
+        }
+
         .sessions-count {
             font-weight: bold;
             color: #ffff00;
@@ -742,11 +753,12 @@
     <script>
         // Supabase Configuration
         const SUPABASE_URL = 'https://amtephoflwfeftmnbjqk.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtdGVwaG9mbHdmZWZ0bW5ianFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgxNTM0NzYsImV4cCI6MjA1MzcyOTQ3Nn0.GCMQ9eLBPoxfXKoJCCLSiVsQPBP8ZGbFLnqrfS4JNQE';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtdGVwaG9mbHdmZWZ0bW5ianFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxMDgxMjgsImV4cCI6MjA2MzY4NDEyOH0.Xi4MG-UMysWjIDHTl75WGDhXBtdkbX9-l3l8blXh0lc';
         const EDGE_FUNCTION_URL = 'https://amtephoflwfeftmnbjqk.supabase.co/functions/v1/ga4-suspicious-hosts';
 
         let supabaseClient = null;
         let ga4Hosts = [];
+        let groupedHosts = []; // Grouped by root domain
         let resolvedHosts = new Set();
         let noneedHosts = new Set();
         let hostNotes = {};
@@ -754,6 +766,67 @@
         let searchTerm = '';
         let sortField = 'sessions';
         let sortDirection = 'desc';
+
+        // Extract root domain from hostname (e.g., "doha.platinumlist.net" -> "platinumlist.net")
+        function getRootDomain(hostname) {
+            const parts = hostname.split('.');
+            if (parts.length <= 2) return hostname;
+            // Handle common TLDs like .co.uk, .com.au etc
+            const knownTLDs = ['co.uk', 'com.au', 'co.nz', 'co.za', 'com.br'];
+            const lastTwo = parts.slice(-2).join('.');
+            if (knownTLDs.includes(lastTwo)) {
+                return parts.slice(-3).join('.');
+            }
+            return parts.slice(-2).join('.');
+        }
+
+        // Group hosts by root domain
+        function groupHostsByDomain(hosts) {
+            const domainMap = new Map();
+
+            hosts.forEach(host => {
+                const rootDomain = getRootDomain(host.hostname);
+                if (!domainMap.has(rootDomain)) {
+                    domainMap.set(rootDomain, {
+                        rootDomain,
+                        subdomains: [],
+                        totalSessions: 0,
+                        totalViews: 0,
+                        totalUsers: 0,
+                        maxThreat: 'low',
+                        category: host.category,
+                        lastSeen: host.lastSeen
+                    });
+                }
+                const group = domainMap.get(rootDomain);
+                group.subdomains.push(host.hostname);
+                group.totalSessions += host.sessions || 0;
+                group.totalViews += host.views || 0;
+                group.totalUsers += host.users || 0;
+
+                // Keep highest threat level
+                const threatOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+                if (threatOrder[host.threat] > threatOrder[group.maxThreat]) {
+                    group.maxThreat = host.threat;
+                }
+
+                // Keep most recent lastSeen
+                if (host.lastSeen > group.lastSeen) {
+                    group.lastSeen = host.lastSeen;
+                }
+            });
+
+            return Array.from(domainMap.values()).map(group => ({
+                hostname: group.rootDomain,
+                sessions: group.totalSessions,
+                views: group.totalViews,
+                users: group.totalUsers,
+                threat: group.maxThreat,
+                category: group.category,
+                lastSeen: group.lastSeen,
+                subdomains: group.subdomains.filter(s => s !== group.rootDomain)
+            }));
+        }
 
         // Baddy's quotes
         const baddyQuotes = [
@@ -907,6 +980,9 @@
                 badge.innerHTML = '⚠️ DEMO MODE';
             }
 
+            // Group hosts by root domain
+            groupedHosts = groupHostsByDomain(ga4Hosts);
+
             await loadResolvedHosts();
             await loadNoneedHosts();
             updateStats();
@@ -977,13 +1053,30 @@
             renderTable();
         }
 
+        // Check if a domain or any of its subdomains is resolved/noneed
+        function isDomainResolved(host) {
+            if (resolvedHosts.has(host.hostname)) return true;
+            if (host.subdomains) {
+                return host.subdomains.some(sub => resolvedHosts.has(sub));
+            }
+            return false;
+        }
+
+        function isDomainNoneed(host) {
+            if (noneedHosts.has(host.hostname)) return true;
+            if (host.subdomains) {
+                return host.subdomains.some(sub => noneedHosts.has(sub));
+            }
+            return false;
+        }
+
         function updateStats() {
             let critical = 0, high = 0, medium = 0, resolved = 0, noneed = 0;
 
-            ga4Hosts.forEach(host => {
-                if (noneedHosts.has(host.hostname)) {
+            groupedHosts.forEach(host => {
+                if (isDomainNoneed(host)) {
                     noneed++;
-                } else if (resolvedHosts.has(host.hostname)) {
+                } else if (isDomainResolved(host)) {
                     resolved++;
                 } else {
                     const risk = classifyRisk(host.hostname, host.sessions);
@@ -1002,14 +1095,14 @@
         }
 
         function getFilteredData() {
-            let filtered = ga4Hosts.map(host => {
+            let filtered = groupedHosts.map(host => {
                 let status = 'active';
                 let risk = classifyRisk(host.hostname, host.sessions);
 
-                if (noneedHosts.has(host.hostname)) {
+                if (isDomainNoneed(host)) {
                     status = 'noneed';
                     risk = 'noneed';
-                } else if (resolvedHosts.has(host.hostname)) {
+                } else if (isDomainResolved(host)) {
                     status = 'resolved';
                     risk = 'resolved';
                 }
@@ -1018,7 +1111,10 @@
             });
 
             if (searchTerm) {
-                filtered = filtered.filter(h => h.hostname.toLowerCase().includes(searchTerm.toLowerCase()));
+                filtered = filtered.filter(h =>
+                    h.hostname.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (h.subdomains && h.subdomains.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())))
+                );
             }
 
             if (currentFilter !== 'all') {
@@ -1089,7 +1185,14 @@
 
             tbody.innerHTML = filtered.map(host => `
                 <tr data-hostname="${host.hostname}">
-                    <td class="hostname">${escapeHtml(host.hostname)}</td>
+                    <td class="hostname">
+                        ${escapeHtml(host.hostname)}
+                        ${host.subdomains && host.subdomains.length > 0 ? `
+                            <div class="subdomains-hint" title="${host.subdomains.join(', ')}">
+                                +${host.subdomains.length} subdomain${host.subdomains.length > 1 ? 's' : ''}
+                            </div>
+                        ` : ''}
+                    </td>
                     <td>
                         <div class="sessions-count">${host.sessions}</div>
                         <div class="hp-bar">
