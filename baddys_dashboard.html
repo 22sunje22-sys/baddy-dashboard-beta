@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baddy's Dashboard | Platinumlist</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --platinum-storm: #0A181C;
+            --platinum-monday: #79E2FF;
+            --platinum-suede: #00A5D3;
+            --platinum-lime: #D4FF00;
+            --black: #000000;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--platinum-storm);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .font-mono { font-family: 'DM Mono', monospace; }
+
+        .header {
+            background: var(--black);
+            padding: 24px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(121, 226, 255, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--platinum-monday);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg { width: 28px; height: 28px; }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span { color: var(--platinum-monday); }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(121, 226, 255, 0.1);
+            border-radius: 100px;
+            font-size: 14px;
+            color: var(--platinum-monday);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--platinum-lime);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.9); }
+        }
+
+        .main {
+            padding: 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .title-section {
+            margin-bottom: 48px;
+        }
+
+        .title {
+            font-size: 64px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -2px;
+            text-transform: uppercase;
+        }
+
+        .title .highlight { color: var(--platinum-monday); }
+
+        .subtitle {
+            font-size: 18px;
+            color: rgba(255,255,255,0.6);
+            margin-top: 16px;
+            max-width: 600px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .stat-card {
+            background: var(--black);
+            border: 1px solid rgba(121, 226, 255, 0.15);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--platinum-monday);
+            transform: translateY(-2px);
+        }
+
+        .stat-card.critical { border-left: 4px solid #ef4444; }
+        .stat-card.high { border-left: 4px solid #f97316; }
+        .stat-card.medium { border-left: 4px solid var(--platinum-monday); }
+        .stat-card.sessions { border-left: 4px solid var(--platinum-lime); }
+
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .stat-card.critical .stat-value { color: #ef4444; }
+        .stat-card.high .stat-value { color: #f97316; }
+        .stat-card.medium .stat-value { color: var(--platinum-monday); }
+        .stat-card.sessions .stat-value { color: var(--platinum-lime); }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .filter-btn {
+            padding: 12px 24px;
+            background: transparent;
+            border: 1px solid rgba(121, 226, 255, 0.3);
+            border-radius: 100px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--platinum-monday);
+            background: rgba(121, 226, 255, 0.1);
+        }
+
+        .filter-btn.active {
+            background: var(--platinum-monday);
+            border-color: var(--platinum-monday);
+            color: var(--black);
+        }
+
+        .table-container {
+            background: var(--black);
+            border: 1px solid rgba(121, 226, 255, 0.15);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 100px 1fr 200px 120px 120px 120px;
+            padding: 16px 24px;
+            background: rgba(121, 226, 255, 0.05);
+            border-bottom: 1px solid rgba(121, 226, 255, 0.1);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .table-row {
+            display: grid;
+            grid-template-columns: 100px 1fr 200px 120px 120px 120px;
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(121, 226, 255, 0.05);
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .table-row:hover {
+            background: rgba(121, 226, 255, 0.03);
+        }
+
+        .table-row.resolved {
+            opacity: 0.4;
+        }
+
+        .table-row.resolved .host-name {
+            text-decoration: line-through;
+        }
+
+        .threat-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .threat-badge.critical {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .threat-badge.high {
+            background: rgba(249, 115, 22, 0.2);
+            color: #f97316;
+        }
+
+        .threat-badge.medium {
+            background: rgba(121, 226, 255, 0.2);
+            color: var(--platinum-monday);
+        }
+
+        .threat-badge.low {
+            background: rgba(212, 255, 0, 0.2);
+            color: var(--platinum-lime);
+        }
+
+        .host-name {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            color: white;
+        }
+
+        .category {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .number {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            text-align: right;
+        }
+
+        .done-btn {
+            padding: 8px 20px;
+            background: transparent;
+            border: 1px solid var(--platinum-lime);
+            border-radius: 100px;
+            color: var(--platinum-lime);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .done-btn:hover {
+            background: var(--platinum-lime);
+            color: var(--black);
+        }
+
+        .done-btn.completed {
+            background: rgba(212, 255, 0, 0.2);
+            border-color: transparent;
+            color: var(--platinum-lime);
+            cursor: default;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            background: var(--platinum-lime);
+            color: var(--black);
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 1200px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .table-header, .table-row { grid-template-columns: 80px 1fr 150px 100px 100px; }
+            .table-header > div:nth-child(4), .table-row > div:nth-child(4) { display: none; }
+        }
+
+        @media (max-width: 768px) {
+            .title { font-size: 40px; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .main { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#0A181C" stroke-width="2.5">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div class="logo-text">Baddy's <span>Dashboard</span></div>
+        </div>
+        <div class="header-right">
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                <span>GA4 Data · Last 30 days</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="title-section">
+            <h1 class="title">
+                Suspicious<br>
+                <span class="highlight">Hosts Monitor.</span>
+            </h1>
+            <p class="subtitle">
+                Track and resolve potentially malicious domains affecting Platinumlist analytics.
+                Data from GA4 API. Resolution status synced with Supabase.
+            </p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card critical">
+                <div class="stat-label">Critical Threats</div>
+                <div class="stat-value" id="criticalCount">0</div>
+            </div>
+            <div class="stat-card high">
+                <div class="stat-label">High Risk</div>
+                <div class="stat-value" id="highCount">0</div>
+            </div>
+            <div class="stat-card medium">
+                <div class="stat-label">Medium / Unknown</div>
+                <div class="stat-value" id="mediumCount">0</div>
+            </div>
+            <div class="stat-card sessions">
+                <div class="stat-label">Total Sessions</div>
+                <div class="stat-value" id="totalSessions">0</div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">All Threats</button>
+            <button class="filter-btn" data-filter="critical">Critical</button>
+            <button class="filter-btn" data-filter="high">High</button>
+            <button class="filter-btn" data-filter="medium">Medium</button>
+            <button class="filter-btn" data-filter="low">Low</button>
+            <button class="filter-btn" data-filter="resolved">Resolved</button>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <div>Threat</div>
+                <div>Host</div>
+                <div>Category</div>
+                <div style="text-align: right">Views</div>
+                <div style="text-align: right">Sessions</div>
+                <div style="text-align: center">Action</div>
+            </div>
+            <div id="tableBody"></div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ===========================================
+        // GA4 DATA - fetched from Edge Function or cached
+        // ===========================================
+        const EDGE_FUNCTION_URL = 'https://amtephoflwfeftmnbjqk.supabase.co/functions/v1/ga4-suspicious-hosts';
+
+        // Fallback data (used when Edge Function is not configured)
+        const FALLBACK_HOSTS = [
+            // CRITICAL - Typosquatting (misspelled platinumlist)
+            { host: "platiniumlist.com", views: 330, sessions: 229, threat: "critical", category: "Typosquatting" },
+            { host: "dubai.platiniumlist.com", views: 12, sessions: 15, threat: "critical", category: "Typosquatting" },
+            { host: "doha.platinumelist.net", views: 0, sessions: 1, threat: "critical", category: "Typosquatting" },
+            { host: "laperle.piatinum.shop", views: 0, sessions: 2, threat: "critical", category: "Typosquatting" },
+            { host: "laperle.fantasilandia.shop", views: 0, sessions: 1, threat: "critical", category: "Typosquatting" },
+            { host: "platinumlist.forum", views: 349, sessions: 308, threat: "critical", category: "Fake Domain" },
+            { host: "manama.platinumlist.forum", views: 131, sessions: 114, threat: "critical", category: "Fake Domain" },
+            { host: "doha.platinumlist.forum", views: 94, sessions: 77, threat: "critical", category: "Fake Domain" },
+            { host: "abu-dhabi.platinumlist.forum", views: 50, sessions: 39, threat: "critical", category: "Fake Domain" },
+            { host: "dubai.platinumlist.forum", views: 19, sessions: 8, threat: "critical", category: "Fake Domain" },
+            { host: "amsterdam.platinumlist.forum", views: 8, sessions: 1, threat: "critical", category: "Fake Domain" },
+            { host: "istanbul.platinumlist.forum", views: 19, sessions: 2, threat: "critical", category: "Fake Domain" },
+            // HIGH - Suspicious external domains
+            { host: "reviveadserver.ru", views: 4, sessions: 4, threat: "high", category: "Ad Server (RU)" },
+            { host: "dxb.ru", views: 0, sessions: 1, threat: "high", category: "Unknown (RU)" },
+            { host: "eyes.tiktok-row.net", views: 0, sessions: 1, threat: "high", category: "Tracking" },
+            { host: "eqs-cockpit.com", views: 0, sessions: 1, threat: "high", category: "Unknown" },
+            { host: "beattheheatdxb.ae", views: 0, sessions: 36, threat: "high", category: "Redirect Abuse" },
+            { host: "www.spotlightlive.ae", views: 59, sessions: 639, threat: "high", category: "Redirect Abuse" },
+            // MEDIUM - Unknown sources / testing
+            { host: "gtm-msr.appspot.com", views: 33, sessions: 51, threat: "medium", category: "GTM Preview" },
+            { host: "project6910751.tilda.ws", views: 0, sessions: 1, threat: "medium", category: "Tilda Website" },
+            { host: "apply.workable.com", views: 2744, sessions: 1379, threat: "medium", category: "Job Portal" },
+            { host: "uaeproleague-landing.pages.dev", views: 6, sessions: 8, threat: "medium", category: "Landing Page" },
+            { host: "wta-landing.pages.dev", views: 4, sessions: 7, threat: "medium", category: "Landing Page" },
+            { host: "gamers-landing.pages.dev", views: 0, sessions: 6, threat: "medium", category: "Landing Page" },
+            { host: "rotana-landing.pages.dev", views: 0, sessions: 6, threat: "medium", category: "Landing Page" },
+            { host: "khobarseason-landing.pages.dev", views: 0, sessions: 5, threat: "medium", category: "Landing Page" },
+            { host: "4m-landing.pages.dev", views: 0, sessions: 1, threat: "medium", category: "Landing Page" },
+            { host: "new-rotana-landing.pages.dev", views: 0, sessions: 2, threat: "medium", category: "Landing Page" },
+            { host: "queue-platinumlist-net.translate.goog", views: 38, sessions: 33, threat: "medium", category: "Google Translate" },
+            { host: "platinumlist-net.translate.goog", views: 4, sessions: 35, threat: "medium", category: "Google Translate" },
+            // LOW - Localhost / Testing
+            { host: "127.0.0.1", views: 13, sessions: 3, threat: "low", category: "Localhost" },
+            { host: "193.233.112.39", views: 0, sessions: 1, threat: "low", category: "Direct IP" },
+            { host: "localhost", views: 0, sessions: 1, threat: "low", category: "Localhost" },
+            { host: "api.platinumlist.net", views: 11, sessions: 9, threat: "low", category: "API" },
+        ];
+
+        let ga4Hosts = [];
+
+        // ===========================================
+        // SUPABASE - only for resolved status
+        // ===========================================
+        const SUPABASE_URL = 'https://amtephoflwfeftmnbjqk.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtdGVwaG9mbHdmZWZ0bW5ianFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxMDgxMjgsImV4cCI6MjA2MzY4NDEyOH0.Xi4MG-UMysWjIDHTl75WGDhXBtdkbX9-l3l8blXh0lc';
+
+        let supabase;
+        let resolvedHosts = new Set();
+        let currentFilter = 'all';
+
+        // Fetch GA4 data from Edge Function
+        async function fetchGA4Data() {
+            try {
+                const response = await fetch(EDGE_FUNCTION_URL);
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    ga4Hosts = result.data;
+                    document.querySelector('.status-badge span').innerHTML =
+                        `<span style="color: var(--platinum-lime);">●</span> Live GA4 · ${result.count} hosts · ${new Date(result.fetchedAt).toLocaleTimeString()}`;
+                    return true;
+                } else {
+                    console.warn('Edge Function error:', result.error || result.message);
+                    return false;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch from Edge Function:', e);
+                return false;
+            }
+        }
+
+        // Initialize
+        async function init() {
+            // Init Supabase client
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            // Try to fetch live GA4 data
+            const liveDataLoaded = await fetchGA4Data();
+
+            if (!liveDataLoaded) {
+                // Use fallback data
+                ga4Hosts = FALLBACK_HOSTS;
+                document.querySelector('.status-badge span').innerHTML =
+                    `<span style="color: #f97316;">●</span> Cached Data · Configure Edge Function for live data`;
+            }
+
+            // Load resolved hosts from Supabase
+            await loadResolvedHosts();
+
+            // Render UI
+            updateStats();
+            renderTable();
+
+            // Refresh every 5 minutes if using live data
+            if (liveDataLoaded) {
+                setInterval(async () => {
+                    await fetchGA4Data();
+                    updateStats();
+                    renderTable();
+                }, 5 * 60 * 1000);
+            }
+        }
+
+        // Load resolved hosts from Supabase
+        async function loadResolvedHosts() {
+            try {
+                const { data, error } = await supabase
+                    .from('suspicious_hosts')
+                    .select('host, is_resolved')
+                    .eq('is_resolved', true);
+
+                if (error) {
+                    console.warn('Supabase error (using local storage):', error);
+                    // Fallback to localStorage
+                    const saved = localStorage.getItem('resolvedHosts');
+                    if (saved) resolvedHosts = new Set(JSON.parse(saved));
+                    return;
+                }
+
+                if (data) {
+                    resolvedHosts = new Set(data.map(h => h.host));
+                }
+            } catch (e) {
+                console.warn('Using localStorage fallback:', e);
+                const saved = localStorage.getItem('resolvedHosts');
+                if (saved) resolvedHosts = new Set(JSON.parse(saved));
+            }
+        }
+
+        // Save resolved status to Supabase
+        async function saveResolvedStatus(hostname, resolved) {
+            try {
+                // Try Supabase first
+                const { error } = await supabase
+                    .from('suspicious_hosts')
+                    .update({
+                        is_resolved: resolved,
+                        resolved_at: resolved ? new Date().toISOString() : null
+                    })
+                    .eq('host', hostname);
+
+                if (error) {
+                    console.warn('Supabase save error:', error);
+                }
+
+                // Also log the action
+                if (resolved) {
+                    await supabase
+                        .from('host_resolution_log')
+                        .insert({
+                            host: hostname,
+                            action: 'marked_done',
+                            resolved_by: 'dashboard_user'
+                        });
+                }
+            } catch (e) {
+                console.warn('Supabase error:', e);
+            }
+
+            // Always save to localStorage as backup
+            localStorage.setItem('resolvedHosts', JSON.stringify([...resolvedHosts]));
+        }
+
+        // Get hosts with resolved status
+        function getHostsWithStatus() {
+            return ga4Hosts.map(h => ({
+                ...h,
+                isResolved: resolvedHosts.has(h.host)
+            }));
+        }
+
+        // Update stats
+        function updateStats() {
+            const hosts = getHostsWithStatus();
+            const active = hosts.filter(h => !h.isResolved);
+
+            const critical = active.filter(h => h.threat === 'critical').length;
+            const high = active.filter(h => h.threat === 'high').length;
+            const medium = active.filter(h => h.threat === 'medium' || h.threat === 'low').length;
+            const sessions = active.reduce((sum, h) => sum + (h.sessions || 0), 0);
+
+            animateNumber('criticalCount', critical);
+            animateNumber('highCount', high);
+            animateNumber('mediumCount', medium);
+            animateNumber('totalSessions', sessions);
+        }
+
+        function animateNumber(id, target) {
+            const el = document.getElementById(id);
+            const current = parseInt(el.textContent.replace(/,/g, '')) || 0;
+            const diff = target - current;
+            const steps = 20;
+            const increment = diff / steps;
+            let step = 0;
+
+            const interval = setInterval(() => {
+                step++;
+                const value = Math.round(current + increment * step);
+                el.textContent = value.toLocaleString();
+                if (step >= steps) {
+                    el.textContent = target.toLocaleString();
+                    clearInterval(interval);
+                }
+            }, 30);
+        }
+
+        // Render table
+        function renderTable() {
+            let hosts = getHostsWithStatus();
+
+            if (currentFilter === 'resolved') {
+                hosts = hosts.filter(h => h.isResolved);
+            } else if (currentFilter !== 'all') {
+                hosts = hosts.filter(h => h.threat === currentFilter && !h.isResolved);
+            }
+
+            // Sort: unresolved first, then by threat level, then by sessions
+            const threatOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            hosts.sort((a, b) => {
+                if (a.isResolved !== b.isResolved) return a.isResolved ? 1 : -1;
+                if (threatOrder[a.threat] !== threatOrder[b.threat]) {
+                    return threatOrder[a.threat] - threatOrder[b.threat];
+                }
+                return (b.sessions || 0) - (a.sessions || 0);
+            });
+
+            const tableBody = document.getElementById('tableBody');
+
+            if (hosts.length === 0) {
+                tableBody.innerHTML = `
+                    <div style="text-align: center; padding: 60px; color: var(--platinum-monday);">
+                        No hosts found for this filter.
+                    </div>
+                `;
+                return;
+            }
+
+            tableBody.innerHTML = hosts.map(host => `
+                <div class="table-row ${host.isResolved ? 'resolved' : ''}" data-host="${host.host}">
+                    <div>
+                        <span class="threat-badge ${host.threat}">${host.threat}</span>
+                    </div>
+                    <div class="host-name">${host.host}</div>
+                    <div class="category">${host.category}</div>
+                    <div class="number">${(host.views || 0).toLocaleString()}</div>
+                    <div class="number">${(host.sessions || 0).toLocaleString()}</div>
+                    <div style="text-align: center">
+                        ${host.isResolved
+                            ? '<button class="done-btn completed">✓ Done</button>'
+                            : `<button class="done-btn" onclick="markDone('${host.host}')">Mark Done</button>`
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Mark as done
+        async function markDone(hostname) {
+            resolvedHosts.add(hostname);
+            await saveResolvedStatus(hostname, true);
+            updateStats();
+            renderTable();
+            showToast(`✓ Marked "${hostname}" as resolved`);
+        }
+
+        // Show toast
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = isError ? '#ef4444' : 'var(--platinum-lime)';
+            toast.style.color = isError ? 'white' : 'var(--black)';
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Filter handlers
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                renderTable();
+            });
+        });
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
