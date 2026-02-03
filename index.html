@@ -629,7 +629,16 @@
                 console.log('Edge Function response:', result);
 
                 if (result.success && result.data) {
-                    ga4Hosts = result.data;
+                    // Normalize data - Edge Function returns 'host', we use 'hostname'
+                    ga4Hosts = result.data.map(item => ({
+                        hostname: item.host || item.hostname,
+                        sessions: item.sessions || 0,
+                        views: item.views || 0,
+                        users: item.users || 0,
+                        threat: item.threat,
+                        category: item.category,
+                        lastSeen: item.lastSeen || new Date().toISOString().split('T')[0]
+                    }));
                     console.log('Loaded', ga4Hosts.length, 'hosts from GA4');
 
                     // Update badge to show live data
