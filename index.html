@@ -467,11 +467,32 @@
             font-size: 0.35rem;
             color: #888;
             margin-top: 2px;
-            cursor: help;
+            cursor: pointer;
+            text-decoration: underline;
         }
 
         .subdomains-hint:hover {
             color: #00ff00;
+        }
+
+        .subdomains-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #111;
+            border: 2px solid #00ff00;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .subdomain-item {
+            font-size: 0.4rem;
+            color: #00ffff;
+            padding: 5px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .subdomain-item:last-child {
+            border-bottom: none;
         }
 
         .sessions-count {
@@ -1216,7 +1237,7 @@
                     <td class="hostname">
                         ${escapeHtml(host.hostname)}
                         ${host.subdomains && host.subdomains.length > 0 ? `
-                            <div class="subdomains-hint" title="${host.subdomains.join(', ')}">
+                            <div class="subdomains-hint" onclick="showSubdomains('${escapeHtml(host.hostname)}', ${JSON.stringify(host.subdomains).replace(/'/g, "\\'")})">
                                 +${host.subdomains.length} subdomain${host.subdomains.length > 1 ? 's' : ''}
                             </div>
                         ` : ''}
@@ -1355,6 +1376,25 @@
 
         function closeModal() {
             document.getElementById('detailModal').classList.remove('active');
+        }
+
+        function showSubdomains(rootDomain, subdomains) {
+            document.getElementById('modalBody').innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">ROOT DOMAIN</span>
+                    <span class="detail-value hostname">${escapeHtml(rootDomain)}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">SUBDOMAINS (${subdomains.length})</span>
+                </div>
+                <div class="subdomains-list">
+                    ${subdomains.map(sub => `<div class="subdomain-item">🎯 ${escapeHtml(sub)}</div>`).join('')}
+                </div>
+                <div class="modal-actions" style="margin-top: 15px;">
+                    <button class="action-btn btn-info" onclick="closeModal()">CLOSE</button>
+                </div>
+            `;
+            document.getElementById('detailModal').classList.add('active');
         }
 
         function killWithNotes(hostname) {
