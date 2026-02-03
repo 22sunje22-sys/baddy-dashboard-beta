@@ -138,6 +138,13 @@
             text-transform: uppercase;
         }
 
+        .data-explanation {
+            color: #ff6600;
+            font-size: 0.4rem;
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+
         .kill-counter {
             margin-top: 15px;
             font-size: 0.7rem;
@@ -681,6 +688,7 @@
         <header>
             <h1>🦊 BADDY'S REVENGE 🦊</h1>
             <p class="subtitle">[ SPAM HUNTER EXTREME ] <span id="dataSourceBadge" class="data-source-badge fallback-badge">LOADING...</span></p>
+            <p class="data-explanation">📡 Live GA4 data from scammers who were stupid enough to copy our website with GA4 included 🤡</p>
             <div class="kill-counter">
                 TARGETS ELIMINATED: <span id="totalKills">0</span> | BLOOD THIRST: <span style="color:#ff0000">MAXIMUM</span>
             </div>
@@ -1032,10 +1040,20 @@
         }
 
         async function removeNoneedHost(hostname) {
-            noneedHosts.delete(hostname);
+            // Find all hostnames to remove (root domain + all subdomains)
+            const hostnamesToRemove = [hostname];
+            const hostData = groupedHosts.find(h => h.hostname === hostname);
+            if (hostData && hostData.subdomains) {
+                hostnamesToRemove.push(...hostData.subdomains);
+            }
+
+            // Remove from local Set
+            hostnamesToRemove.forEach(h => noneedHosts.delete(h));
+
+            // Remove from database
             if (supabaseClient) {
                 try {
-                    await supabaseClient.from('noneed_hosts').delete().eq('hostname', hostname);
+                    await supabaseClient.from('noneed_hosts').delete().in('hostname', hostnamesToRemove);
                 } catch (e) { console.error(e); }
             }
             updateStats();
@@ -1043,10 +1061,20 @@
         }
 
         async function unresolveHost(hostname) {
-            resolvedHosts.delete(hostname);
+            // Find all hostnames to remove (root domain + all subdomains)
+            const hostnamesToRemove = [hostname];
+            const hostData = groupedHosts.find(h => h.hostname === hostname);
+            if (hostData && hostData.subdomains) {
+                hostnamesToRemove.push(...hostData.subdomains);
+            }
+
+            // Remove from local Set
+            hostnamesToRemove.forEach(h => resolvedHosts.delete(h));
+
+            // Remove from database
             if (supabaseClient) {
                 try {
-                    await supabaseClient.from('resolved_hosts').delete().eq('hostname', hostname);
+                    await supabaseClient.from('resolved_hosts').delete().in('hostname', hostnamesToRemove);
                 } catch (e) { console.error(e); }
             }
             updateStats();
@@ -1231,8 +1259,19 @@
         }
 
         function killHost(hostname) {
-            resolvedHosts.add(hostname);
-            saveResolvedHost(hostname);
+            // Find all hostnames to kill (root domain + all subdomains)
+            const hostData = groupedHosts.find(h => h.hostname === hostname);
+            const hostnamesToKill = [hostname];
+            if (hostData && hostData.subdomains) {
+                hostnamesToKill.push(...hostData.subdomains);
+            }
+
+            // Add all to resolved Set and save to DB
+            hostnamesToKill.forEach(h => {
+                resolvedHosts.add(h);
+                saveResolvedHost(h);
+            });
+
             showFunMessage(killMessages[Math.floor(Math.random() * killMessages.length)]);
             updateStats();
             renderTable();
@@ -1242,8 +1281,19 @@
         }
 
         function spareHost(hostname) {
-            noneedHosts.add(hostname);
-            saveNoneedHost(hostname);
+            // Find all hostnames to spare (root domain + all subdomains)
+            const hostData = groupedHosts.find(h => h.hostname === hostname);
+            const hostnamesToSpare = [hostname];
+            if (hostData && hostData.subdomains) {
+                hostnamesToSpare.push(...hostData.subdomains);
+            }
+
+            // Add all to noneed Set and save to DB
+            hostnamesToSpare.forEach(h => {
+                noneedHosts.add(h);
+                saveNoneedHost(h);
+            });
+
             showFunMessage(spareMessages[Math.floor(Math.random() * spareMessages.length)]);
             updateStats();
             renderTable();
@@ -1252,17 +1302,26 @@
         }
 
         function showDetails(hostname) {
-            const host = ga4Hosts.find(h => h.hostname === hostname);
+            const host = groupedHosts.find(h => h.hostname === hostname);
             if (!host) return;
 
             const risk = classifyRisk(host.hostname, host.sessions);
             const notes = hostNotes[hostname] || '';
+
+            // Show subdomains info
+            const subdomainsInfo = host.subdomains && host.subdomains.length > 0
+                ? `<div class="detail-row">
+                    <span class="detail-label">SUBDOMAINS</span>
+                    <span class="detail-value" style="font-size: 0.35rem; color: #888;">${host.subdomains.join(', ')}</span>
+                </div>`
+                : '';
 
             document.getElementById('modalBody').innerHTML = `
                 <div class="detail-row">
                     <span class="detail-label">TARGET</span>
                     <span class="detail-value hostname">${escapeHtml(host.hostname)}</span>
                 </div>
+                ${subdomainsInfo}
                 <div class="detail-row">
                     <span class="detail-label">HP (SESSIONS)</span>
                     <span class="detail-value">${host.sessions}</span>
