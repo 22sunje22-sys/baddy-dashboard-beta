@@ -796,17 +796,38 @@
         let sortField = 'sessions';
         let sortDirection = 'desc';
 
+        // Patterns matching platinumlist-like domains
+        const PLATINUM_PATTERNS = /platinumlist|platiniumlist|piatinum/i;
+
         // Extract root domain from hostname (e.g., "doha.platinumlist.net" -> "platinumlist.net")
+        // Special case: if "platinumlist" is in subdomain of a third-party service
+        // (e.g., "platinumlist-net.translate.goog"), keep full hostname to avoid
+        // grouping under the third-party domain
         function getRootDomain(hostname) {
+            // IP addresses should not be split - return as-is
+            if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return hostname;
+
             const parts = hostname.split('.');
             if (parts.length <= 2) return hostname;
+
             // Handle common TLDs like .co.uk, .com.au etc
             const knownTLDs = ['co.uk', 'com.au', 'co.nz', 'co.za', 'com.br'];
             const lastTwo = parts.slice(-2).join('.');
+            let rootDomain;
             if (knownTLDs.includes(lastTwo)) {
-                return parts.slice(-3).join('.');
+                rootDomain = parts.slice(-3).join('.');
+            } else {
+                rootDomain = parts.slice(-2).join('.');
             }
-            return parts.slice(-2).join('.');
+
+            // If platinum-like pattern is in subdomain but NOT in the root domain,
+            // this is a third-party proxy (translate.goog, londontheatredirect.com etc.)
+            // Keep full hostname so it doesn't get grouped under the third-party domain
+            if (PLATINUM_PATTERNS.test(hostname) && !PLATINUM_PATTERNS.test(rootDomain)) {
+                return hostname;
+            }
+
+            return rootDomain;
         }
 
         // Group hosts by root domain
